@@ -4,6 +4,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'Abdulaziz AI Assistant',
   description: 'Ask questions about Abdulaziz Suria',
+  icons: {
+    icon: '/aztech-logo.svg',
+  },
 }
 
 export default function RootLayout({
