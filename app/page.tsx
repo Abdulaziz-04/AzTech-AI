@@ -107,6 +107,11 @@ export default function Home() {
     const checkSuggestionsFit = () => {
       const row = pillRowRef.current;
       if (!row) return;
+      const isMobile = window.innerWidth <= 720;
+      if (isMobile) {
+        setShowSuggestions(true);
+        return;
+      }
       const fits = row.scrollWidth <= row.clientWidth + 1;
       setShowSuggestions(fits);
     };
