@@ -149,7 +149,7 @@ export default function Home() {
             </div>
             <div className="brand-title">AZTech AI</div>
           </div>
-          <div className="brand-subtitle">Aziz + Tech - LLM guide to Abdulaziz Suria</div>
+          <div className="brand-subtitle">Aziz + Tech - AI assistant for Abdulaziz Suria</div>
           <h1 className="hero-title">Ask anything about Abdulaziz.</h1>
           <p className="hero-copy">
             Get concise answers about his background, projects, certifications, and how he builds
@@ -203,7 +203,7 @@ export default function Home() {
         <textarea
           ref={textAreaRef}
           className="chat-input"
-          placeholder="Ask anything"
+          placeholder="Ask me anything about Abdulaziz"
           value={message}
           rows={1}
           onChange={(e) => {
