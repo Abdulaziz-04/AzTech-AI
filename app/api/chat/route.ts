@@ -10,6 +10,9 @@ import { logChat } from "@/lib/supabase";
 export async function POST(req: NextRequest) {
   try {
     const { message, sessionId, userId } = await req.json();
+    if (!message || typeof message !== "string") {
+      return Response.json({ response: "Missing message." }, { status: 400 });
+    }
     const entries = loadContextEntries();
     const background = entries.filter((e) => e.id.startsWith("background"));
     const projects = entries.filter((e) => e.id.startsWith("projects"));
@@ -65,7 +68,7 @@ ${selectedContext}`;
       systemInstruction: systemPrompt,
     });
 
-    const completion = await model.generateContent({
+    const result = await model.generateContentStream({
       contents: [{ role: "user", parts: [{ text: message }] }],
       generationConfig: {
         temperature: 0.2,
@@ -80,42 +83,54 @@ ${selectedContext}`;
       ],
     });
 
-    const candidate = completion.response?.candidates?.[0];
-    const finishReason = candidate?.finishReason;
-    const promptFeedback = completion.response?.promptFeedback;
-    const textFromParts =
-      candidate?.content?.parts?.map((p) => (p as { text?: string })?.text ?? "").join("") ||
-      "";
-    const text = (completion.response?.text?.() || textFromParts).trim();
+    const encoder = new TextEncoder();
+    let fullText = "";
 
-    if (!text) {
-      console.warn("Gemini returned empty text", {
-        finishReason,
-        hasCandidates: Boolean(completion.response?.candidates?.length),
-        safetyRatings: candidate?.safetyRatings,
-        modelName,
-        promptFeedback,
-      });
-      if (finishReason === "SAFETY") {
-        return Response.json({
-          response:
-            "The model blocked that reply due to safety filters. Try rephrasing the question about Abdulaziz's work.",
-          debug: { finishReason, promptFeedback, safetyRatings: candidate?.safetyRatings },
-        });
-      }
-      return Response.json({
-        response:
-          "I didn't get a usable reply from the model. Please try asking about Abdulaziz's skills or projects again.",
-        debug: { finishReason, promptFeedback, safetyRatings: candidate?.safetyRatings },
-      });
-    }
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const chunkText =
+              chunk?.text?.() ||
+              chunk?.candidates?.[0]?.content?.parts
+                ?.map((p) => (p as { text?: string })?.text ?? "")
+                .join("") ||
+              "";
 
-    logChat(message, text, { sessionId, userId }).catch((err) =>
-      console.error("logChat error:", err)
-    );
+            if (!chunkText) continue;
+            fullText += chunkText;
+            controller.enqueue(encoder.encode(chunkText));
+          }
+          controller.close();
+        } catch (err) {
+          console.error("Streaming error:", err);
+          controller.error(err);
+        } finally {
+          result.response
+            ?.then((resp) => {
+              const aggregated =
+                resp?.text?.() ||
+                resp?.candidates?.[0]?.content?.parts
+                  ?.map((p) => (p as { text?: string })?.text ?? "")
+                  .join("") ||
+                fullText;
+              if (aggregated) {
+                logChat(message, aggregated, { sessionId, userId }).catch((err) =>
+                  console.error("logChat error:", err)
+                );
+              }
+            })
+            .catch((err) => console.error("Stream aggregation error:", err));
+        }
+      },
+    });
 
-    return Response.json({
-      response: text,
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
     });
   } catch (error) {
     console.error("Chat route error:", error);

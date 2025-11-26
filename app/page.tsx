@@ -17,6 +17,8 @@ export default function Home() {
   const [message, setMessage] = useState('');
   const [history, setHistory] = useState<ChatTurn[]>([]);
   const [loading, setLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string>('');
+  const [userId, setUserId] = useState<string>('');
   const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
   const chatBodyRef = useRef<HTMLDivElement | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
@@ -42,35 +44,64 @@ export default function Home() {
     setLoading(true);
 
     const userText = message.trim();
-    setHistory((prev) => [...prev, { role: 'user', content: userText }]);
+    setHistory((prev) => [
+      ...prev,
+      { role: 'user', content: userText },
+      { role: 'assistant', content: '' },
+    ]);
     setMessage('');
     setTimeout(autoResize, 0);
+
+    const updateAssistant = (content: string) => {
+      setHistory((prev) => {
+        const next = [...prev];
+        for (let i = next.length - 1; i >= 0; i -= 1) {
+          if (next[i].role === 'assistant') {
+            next[i] = { ...next[i], content };
+            break;
+          }
+        }
+        return next;
+      });
+    };
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText }),
+        body: JSON.stringify({ message: userText, sessionId, userId }),
       });
 
       if (!res.ok) {
-        let serverMessage = 'Sorry, something went wrong. Please try again.';
-        try {
-          const errJson = await res.json();
-          serverMessage = errJson?.response || serverMessage;
-        } catch {
-          const text = await res.text();
-          if (text) serverMessage = text;
-        }
-        throw new Error(serverMessage);
+        const errorText = (await res.text()) || 'Sorry, something went wrong. Please try again.';
+        throw new Error(errorText);
       }
 
-      const data = await res.json();
-      setHistory((prev) => [...prev, { role: 'assistant', content: data.response }]);
+      const reader = res.body?.getReader();
+      if (!reader) {
+        const fallbackText = (await res.text()) || 'Sorry, something went wrong. Please try again.';
+        updateAssistant(fallbackText);
+        setLoading(false);
+        return;
+      }
+
+      const decoder = new TextDecoder();
+      let assistantText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        assistantText += decoder.decode(value, { stream: true });
+        updateAssistant(assistantText);
+        scrollToBottom();
+      }
+
+      assistantText += decoder.decode();
+      updateAssistant(assistantText || 'Sorry, something went wrong. Please try again.');
       scrollToBottom();
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : 'Sorry, something went wrong. Please try again.';
-      setHistory((prev) => [...prev, { role: 'assistant', content: errorMsg }]);
+      updateAssistant(errorMsg);
       scrollToBottom();
     }
 
@@ -79,6 +110,21 @@ export default function Home() {
 
   useEffect(() => {
     autoResize();
+
+    const getOrCreateId = (key: string) => {
+      try {
+        const existing = localStorage.getItem(key);
+        if (existing) return existing;
+        const generated = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        localStorage.setItem(key, generated);
+        return generated;
+      } catch {
+        return '';
+      }
+    };
+
+    setSessionId(getOrCreateId('aztech_session_id'));
+    setUserId(getOrCreateId('aztech_user_id'));
   }, []);
 
   useEffect(() => {
