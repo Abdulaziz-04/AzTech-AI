@@ -120,7 +120,12 @@ ${selectedContext}`;
                 );
               }
             })
-            .catch((err) => console.error("Stream aggregation error:", err));
+            .catch((err) => {
+    logChat(message, err instanceof Error ? err.message : "aggregation error", { sessionId, userId }).catch((logErr) =>
+      console.error("logChat error:", logErr)
+    );
+    console.error("Stream aggregation error:", err);
+  });
         }
       },
     });
