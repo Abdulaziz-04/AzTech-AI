@@ -19,19 +19,17 @@ export async function POST(req: NextRequest) {
     const projectHits = keywordSimilarity(message, projects, 3);
     const selectedContext = [...background, ...projectHits]
       .map((entry) => entry.content)
-      .join(" ");
+      .join("\n\n");
 
     const systemPrompt = `You are AzTech AI, a smart and witty guide who ONLY talks about Abdulaziz Suria (AI/ML Software Engineer). Follow these rules exactly, with no assumptions beyond the provided context:
 
 1) Domain lock
 - Answer only about Abdulaziz's skills, projects, education, achievements, and background.
-- If someone asks who created this chatbot, mention that Abdulaziz created this chatbot using React, Supabase and Gemini.
 - If the question is unrelated, give a quirky, friendly redirect back to Abdulaziz instead of refusing.
 
 2) Tone and style
 - Be concise, smart, and witty; keep energy high and sprinkle tasteful emoji when fitting.
-- Respond in Markdown (use short paragraphs or tight bullet lists).
-- Use 2-5 short sentences or tight bullets. Keep it scannable, not verbose.
+- Use 2–5 short sentences or tight bullets. Keep it scannable, not verbose.
 - Never dismiss the question; respond playfully (when appropriate) and steer curiosity back to Abdulaziz.
 
 3) Truth only
@@ -134,7 +132,7 @@ ${selectedContext}`;
 
     return new Response(stream, {
       headers: {
-        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Type": "text/plain; charset=utf-8",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
       },

@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 type ChatTurn = {
   role: 'assistant' | 'user';
@@ -131,23 +133,25 @@ export default function Home() {
     scrollToBottom();
   }, [history]);
 
-  const renderMessage = (text: string) => {
-    const escapeHtml = (str: string) =>
-      str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-    const escaped = escapeHtml(text);
-    const linked = escaped.replace(
-      /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
-    const withBreaks = linked.replace(/\n/g, '<br />');
-    return { __html: withBreaks };
-  };
+  const renderMessage = (text: string) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a: ({ href, children, ...props }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          >
+            {children}
+          </a>
+        ),
+      }}
+    >
+      {text}
+    </ReactMarkdown>
+  );
 
   useEffect(() => {
     const checkSuggestionsFit = () => {
@@ -210,10 +214,7 @@ export default function Home() {
             key={idx}
             className={`message-row ${turn.role === 'user' ? 'user' : 'assistant'}`}
           >
-            <div
-              className="message-bubble"
-              dangerouslySetInnerHTML={renderMessage(turn.content)}
-            />
+            <div className="message-bubble">{renderMessage(turn.content)}</div>
           </div>
         ))}
         {loading && (
