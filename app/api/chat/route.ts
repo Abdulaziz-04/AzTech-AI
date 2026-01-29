@@ -13,6 +13,14 @@ export async function POST(req: NextRequest) {
     if (!message || typeof message !== "string") {
       return Response.json({ response: "Missing message." }, { status: 400 });
     }
+    const normalizeId = (value: unknown) => {
+      if (typeof value !== "string") return null;
+      const trimmed = value.trim();
+      if (!trimmed || trimmed.length > 128) return null;
+      return trimmed;
+    };
+    const normalizedSessionId = normalizeId(sessionId) || crypto.randomUUID();
+    const normalizedUserId = normalizeId(userId);
     const entries = loadContextEntries();
     const background = entries.filter((e) => e.id.startsWith("background"));
     const projects = entries.filter((e) => e.id.startsWith("projects"));
@@ -117,17 +125,20 @@ ${selectedContext}`;
                   .join("") ||
                 fullText;
               if (aggregated) {
-                logChat(message, aggregated, { sessionId, userId }).catch((err) =>
-                  console.error("logChat error:", err)
-                );
+                logChat(message, aggregated, {
+                  sessionId: normalizedSessionId,
+                  userId: normalizedUserId ?? undefined,
+                }).catch((err) => console.error("logChat error:", err));
               }
             })
             .catch((err) => {
-    logChat(message, err instanceof Error ? err.message : "aggregation error", { sessionId, userId }).catch((logErr) =>
-      console.error("logChat error:", logErr)
-    );
-    console.error("Stream aggregation error:", err);
-  });
+              logChat(
+                message,
+                err instanceof Error ? err.message : "aggregation error",
+                { sessionId: normalizedSessionId, userId: normalizedUserId ?? undefined }
+              ).catch((logErr) => console.error("logChat error:", logErr));
+              console.error("Stream aggregation error:", err);
+            });
         }
       },
     });
@@ -137,6 +148,7 @@ ${selectedContext}`;
         "Content-Type": "text/markdown; charset=utf-8",
         "Cache-Control": "no-cache",
         "X-Accel-Buffering": "no",
+        "X-Session-Id": normalizedSessionId,
       },
     });
   } catch (error) {

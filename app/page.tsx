@@ -78,6 +78,15 @@ export default function Home() {
         const errorText = (await res.text()) || 'Sorry, something went wrong. Please try again.';
         throw new Error(errorText);
       }
+      const serverSessionId = res.headers.get('X-Session-Id');
+      if (serverSessionId && serverSessionId !== sessionId) {
+        setSessionId(serverSessionId);
+        try {
+          localStorage.setItem('aztech_session_id', serverSessionId);
+        } catch {
+          // Ignore storage failures; session will still be used for this request.
+        }
+      }
 
       const reader = res.body?.getReader();
       if (!reader) {
@@ -133,6 +142,13 @@ export default function Home() {
     scrollToBottom();
   }, [history]);
 
+  const normalizeSpacing = (text: string) =>
+    text
+      .replace(/\r\n/g, '\n')
+      .replace(/[ \t]+$/gm, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
   const renderMessage = (text: string) => (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -149,7 +165,7 @@ export default function Home() {
         ),
       }}
     >
-      {text}
+      {normalizeSpacing(text)}
     </ReactMarkdown>
   );
 
